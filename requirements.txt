@@ -1,3 +1,4 @@
 torch
 fastai
 argparse
+opencv-python
