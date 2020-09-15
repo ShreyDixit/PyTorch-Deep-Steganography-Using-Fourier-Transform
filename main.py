@@ -11,10 +11,12 @@ import os
 import torch
 import argparse
 import numpy
+from functools import partial
 
-from data import ImageLoader
+from utils import *
 from model import StegNet
 
+from fastai.core import parallel
 from fastai.basic_data import DataBunch
 from fastai.basic_train import Learner
 from fastai.train import fit_one_cycle, lr_find
@@ -41,26 +43,14 @@ parser.add_argument('--fourierSeed', metavar='', default=42,
 
 args = parser.parse_args()
 
-def decrypt(img_channel, seed = 42):
-    np.random.seed(seed)
-    f = np.fft.fft2(img_channel)
-    mag, ang = np.abs(f), np.arctan2(f.imag, f.real)
-    ns = np.random.uniform(0, 6.28, size = f.shape)
-    ang_rec = ang-ns
-    img_rec = np.fft.ifft2(mag*np.exp((ang-ns)*1j)).real
-    return img_rec
-
-def mse(y_pred, y): return (((y_pred - y)*255)**2).mean()
-def mse_cov(y_pred, y): return (((y_pred[0] - y[0])*255)**2).mean()
-def mse_hidden(y_pred, y): return (((y_pred[1] - y[1])*255)**2).mean()
-
 def main():
+    model = StegNet(8, 4)
+    
     if args.train:
         data_train = DataLoader(args.datapath + '/train', args.num_train, args.fourierSeed, args.size, args.bs)
         data_train = DataLoader(args.datapath + '/val', args.num_val, args.fourierSeed, args.size, args.bs)
         data = DataBunch(data_train, data_val)
         
-        model = StegNet(8, 4)
         if args.model is not None:
             model.load_state_dict(torch.load(args.model))
             
@@ -70,3 +60,31 @@ def main():
         fit_one_cycle(learn, args.epochs, 3e-2)
         
         torch.save(learn.model.state_dict())
+
+    else:
+        path = input("Enter path of the model: ") if args.model is None else args.model
+        model.load_state_dict(torch.load(args.model))
+        model.eval()
+        
+        if args.encode:
+            f_paths = [args.datapath + '/'+ f for f in os.listdir(args.datapath + '/cover')]
+            try:  
+                os.mkdir(args.datapath+'/encoded')
+            except OSError:
+                pass
+            fourier_func = partial(encrypt, seed = args.seed)
+            encode_partial = partial(encode, model=model.encoder, size=size, fourier_func)
+            parallel(encode_partial, f_paths)
+        
+        else: 
+            f_paths = [args.datapath + '/'+ f for f in os.listdir(args.datapath + '/encoded')]
+            try:  
+                os.mkdir(args.datapath+'/decoded')
+            except OSError:
+                pass
+            fourier_func = partial(decrypt, seed = args.seed)
+            decode_partial = partial(decode, model=model.decoder, size=size, fourier_func)
+            parallel(decode_partial, f_paths)
+            
+if __name__ == '__main__':
+    main()
