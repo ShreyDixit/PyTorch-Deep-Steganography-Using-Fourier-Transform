@@ -28,23 +28,24 @@ def decrypt(img_channel, seed = 42):
 
 def image_crypto(f_path, size, func):
     img = cv2.imread(f_path)[:, :, [2, 1, 0]]
-    img = cv2.resize(img)
+    img = cv2.resize(img, size)
     return np.stack([func(img[..., i]) for i in range(3)], 2)
 
 def encode(f_path, idx, model, size, fourier_func):
-    path, fname = f_path.split('/')[:-2].join('/'), f_path.split('/')[-1]
-    x = cv2.resize(cv2.imread(f_path)[:, :, [2, 1, 0]], size)
-    y = image_crypto(path + '/secret/'+ fname, size, fourier_func)
-    x, y = torch.tensor(x).transpose((2,0,1), torch.tensor(y).transpose((2,0,1)
-    X = torch.stack((x.float(), y.float()))/255
-    out = model(X[None]).squeeze().permute(1, 2, 0)[:, :, [2, 1, 0]]
+    path, fname = '/'.join(f_path.split('/')[:-2]), f_path.split('/')[-1]
+    x = cv2.resize(cv2.imread(f_path)[:, :, [2, 1, 0]], size).transpose((2,0,1))
+    y = image_crypto(path + '/secret/'+ fname, size, fourier_func).transpose((2,0,1))
+    x, y = torch.tensor(x), torch.tensor(y)
+    X = torch.cat((x.float(), y.float()), 0)/255
+    out = model(X[None]).squeeze().permute(1, 2, 0)[:, :, [2, 1, 0]].detach().numpy()
     cv2.imwrite(path + '/encoded/' + fname, out)
                                                                         
-def encode(f_path, idx, model, size, fourier_func):
+def decode(f_path, idx, model, size, fourier_func):
     path, fname = f_path.split('/')[:-2].join('/'), f_path.split('/')[-1]
-    x = cv2.resize(cv2.imread(f_path)[:, :, [2, 1, 0]], size)
-    x = torch.tensor(x).transpose((2,0,1)
-    out = model(x[None]).squeeze().permute(1, 2, 0)[:, :, [2, 1, 0]]
+    x = cv2.resize(cv2.imread(f_path)[:, :, [2, 1, 0]], size).transpose((2,0,1))
+    x = torch.tensor(x)
+    out = model(x[None]).squeeze().permute(1, 2, 0)[:, :, [2, 1, 0]].detach().numpy()
+    out = np.stack([fourier_func(out[..., i]) for i in range(3)], 2)                             
     cv2.imwrite(path + '/decoded/' + fname, out)                                                                        
                                                                             
 def mse(y_pred, y): return (((y_pred - y)*255)**2).mean()
@@ -52,23 +53,22 @@ def mse_cov(y_pred, y): return (((y_pred[0] - y[0])*255)**2).mean()
 def mse_hidden(y_pred, y): return (((y_pred[1] - y[1])*255)**2).mean()                                                                      
 
 class Image_Data(Dataset):
-    def __init__(self, path, data_len, size, fourier_seed):
+    def __init__(self, path, data_len, fourier_seed, size):
         self.path = path
-        self.encrypt_partial = partial(encrypt, seed=self.fourier_seed)
+        self.encrypt_partial = partial(encrypt, seed=fourier_seed)
         self.size = size
         f_paths = [path + '/'+ f for f in os.listdir(path)]
-        random.seed(42)
-        self.file_pairs = random.sample(list(combinations(f_paths, 2)), data_len)
+        self.file_pairs = list(zip(random.sample(f_paths, data_len), random.sample(f_paths, data_len)))
 
     def __len__(self):
         return len(self.file_pairs)
 
     def __getitem__(self, idx):
         file_pair= self.file_pairs[idx]
-        x = cv2.imread(self.path + '/' + file_pair[0])[:, :, [2, 1, 0]]
-        x = cv2.resize(x, self.size)
-        y = image_crypto(self.path + '/' + file_pair[1], self.size, self.encrypt_partial)
-        x, y = torch.tensor(x).transpose((2,0,1), torch.tensor(y).transpose((2,0,1)
+        x = cv2.imread(file_pair[0])[:, :, [2, 1, 0]]
+        x = cv2.resize(x, self.size).transpose((2,0,1))
+        y = image_crypto(file_pair[1], self.size, self.encrypt_partial).transpose((2,0,1))
+        x, y = torch.tensor(x), torch.tensor(y)
         X = torch.stack((x.float(), y.float()))/255
         return X, X
     
