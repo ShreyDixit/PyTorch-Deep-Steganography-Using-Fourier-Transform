@@ -67,11 +67,20 @@ class ResNetLayer(nn.Module):
 class StegNet(nn.Module):
     def __init__(self, encoder_layers=5, decoder_layers=5):
         super().__init__()
-        self.encoder = nn.Sequential(ResNetLayer(6, 32, n = encoder_layers), nn.Conv2d(32, 3, kernel_size=(1, 1), bias=False))
-        self.decoder = nn.Sequential(ResNetLayer(3, 16, n = decoder_layers), nn.Conv2d(16, 3, kernel_size=(1, 1), bias=False))
+        self.mean = torch.tensor([[[[[120.0647]], [[113.9922]], [[103.8980]]],
+                                 [[[119.9911]], [[113.9572]], [[103.9110]]]]])
+        self.std = torch.tensor([[[[[70.2821]], [[69.1352]], [[72.8606]]],
+                                [[[70.2184]], [[69.1267]], [[72.9056]]]]])
+        res = ResNetLayer(6, 32, n = encoder_layers)
+        self.encoder = DynamicUnet(list(res.children())[0], 3, (128, 128))
+        self.decoder = nn.Sequential(ResNetLayer(3, 32, n = decoder_layers), 
+                                     nn.Conv2d(32, 3, kernel_size=(1, 1), bias=False),)
     
     def forward(self, X):
+        X = (X-self.mean)/self.std
         concat_images = torch.cat((X[:, 0], X[:, 1]), 1)
-        embedded_image = torch.sigmoid(self.encoder(concat_images))*1.1 - 0.1
-        decoded_image = torch.sigmoid(self.decoder(embedded_image))*1.1 - 0.1
-        return torch.stack((embedded_image, decoded_image), 1)
+        embedded_image = self.encoder(concat_images)
+        decoded_image = self.decoder(embedded_image)
+        out = torch.stack((embedded_image, decoded_image), 1)
+        out = (out * self.std) + self.mean
+        return out

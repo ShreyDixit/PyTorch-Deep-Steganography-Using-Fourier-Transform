@@ -45,7 +45,7 @@ args = parser.parse_args()
 args.size = (args.size, args.size)
 
 def main():
-    model = StegNet(8, 4)
+    model = StegNet(10, 6)
     print("Created Model")
     
     if args.train:
@@ -64,7 +64,7 @@ def main():
         learn = Learner(data, model, loss_func = loss_fn, metrics = [mse_cov, mse_hidden])
         
         print("training")
-        fit_one_cycle(learn, args.epochs, 3e-2)
+        fit_one_cycle(learn, args.epochs, 1e-2)
         
         torch.save(learn.model.state_dict(), "model.pth")
         print("model saved")
