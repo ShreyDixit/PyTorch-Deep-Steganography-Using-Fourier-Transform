@@ -24,3 +24,29 @@ main.py [-h] [-use | -train] [-encode | -decode] [--datapath]
   --fourierSeed   Seed for generating the pseudorandom matrix for changing
                   phase in fourier domain
 ```
+### Tiny Deviations 
+* deviation between cover and contianer 
+  <table align='center'>
+  <tr align='center'>
+  <td> cover image </td>
+  <td> container image </td>
+  </tr>
+  <tr>
+  <td><img src = 'results/cover.jpeg'>
+  <td><img src = 'results/container.jpeg'>
+  </tr>
+  </table>
+
+
+
+* deviation between secret and revealed secret 
+  <table align='center'>
+  <tr align='center'>
+  <td> secret image </td>
+  <td> revealed secret image </td>
+  </tr>
+  <tr>
+  <td><img src = 'results/secret.png'>
+  <td><img src = 'results/decoded.png'>
+  </tr>
+  </table>
